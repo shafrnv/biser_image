@@ -12,8 +12,6 @@ const state = {
     showGrid: true,
     showLabels: true,
     showConnections: false,
-    useRadialGrid: true,
-    useRectangularGrid: false,
     displayScaleMultiplier: 1.0
 };
 
@@ -49,8 +47,6 @@ const zoomOutBtn = document.getElementById('zoomOutBtn');
 const toggleGridBtn = document.getElementById('toggleGridBtn');
 const toggleLabelsBtn = document.getElementById('toggleLabelsBtn');
 const toggleConnectionsBtn = document.getElementById('toggleConnectionsBtn');
-const radialGridCheckbox = document.getElementById('radialGridCheckbox');
-const rectangularGridCheckbox = document.getElementById('rectangularGridCheckbox');
 const exportBtn = document.getElementById('exportBtn');
 const addColorBtn = document.getElementById('addColorBtn');
 const applyPaletteBtn = document.getElementById('applyPaletteBtn');
@@ -101,16 +97,6 @@ function setupEventListeners() {
     toggleLabelsBtn.addEventListener('click', toggleLabels);
     if (toggleConnectionsBtn) {
         toggleConnectionsBtn.addEventListener('click', toggleConnections);
-    }
-    if (radialGridCheckbox) {
-        radialGridCheckbox.addEventListener('change', (e) => {
-            state.useRadialGrid = e.target.checked;
-        });
-    }
-    if (rectangularGridCheckbox) {
-        rectangularGridCheckbox.addEventListener('change', (e) => {
-            state.useRectangularGrid = e.target.checked;
-        });
     }
     exportBtn.addEventListener('click', exportPattern);
     addColorBtn.addEventListener('click', addNewColor);
@@ -251,24 +237,8 @@ async function generatePattern() {
     // Use setTimeout to allow UI to update
     setTimeout(() => {
         try {
-            let pattern;
-            
-            // Create pattern based on selected grid type
-            if (state.useRadialGrid && state.useRectangularGrid) {
-                // Combine both patterns
-                const radialPattern = createRadialPattern();
-                const rectangularPattern = createRectangularPattern();
-                pattern = [...radialPattern, ...rectangularPattern];
-            } else if (state.useRadialGrid) {
-                pattern = createRadialPattern();
-            } else if (state.useRectangularGrid) {
-                pattern = createRectangularPattern();
-            } else {
-                alert('Выберите хотя бы один тип сетки');
-                loadingOverlay.classList.add('hidden');
-                return;
-            }
-            
+            // Create pattern with radial sampling
+            const pattern = createRadialPattern();
             state.pattern = pattern;
 
             // Draw pattern
@@ -384,86 +354,6 @@ function createRadialPattern() {
             positionInRing: color.positionInRing,
             beadNumber: i + 1,
             colorIndex: paletteIndex
-        });
-    }
-
-    return pattern;
-}
-
-function createRectangularPattern() {
-    const { colorCount, startPoint, beadSize } = state;
-    const { data } = state.imageData;
-    const imgWidth = imageCanvas.width;
-    const imgHeight = imageCanvas.height;
-
-    // Bead spacing is the bead size in pixels
-    const beadSpacing = beadSize;
-
-    // Generate bead positions in rectangular grid
-    const beadPositions = [];
-    const colors = [];
-
-    // Calculate grid bounds
-    const startX = Math.max(0, startPoint.x - Math.floor(startPoint.x / beadSpacing) * beadSpacing);
-    const startY = Math.max(0, startPoint.y - Math.floor(startPoint.y / beadSpacing) * beadSpacing);
-
-    // Generate grid positions
-    for (let y = startY; y < imgHeight; y += beadSpacing) {
-        for (let x = startX; x < imgWidth; x += beadSpacing) {
-            if (x >= 0 && x < imgWidth && y >= 0 && y < imgHeight) {
-                const gridX = Math.floor((x - startX) / beadSpacing);
-                const gridY = Math.floor((y - startY) / beadSpacing);
-                
-                beadPositions.push({
-                    x,
-                    y,
-                    gridX,
-                    gridY,
-                    rowIndex: gridY,
-                    colIndex: gridX
-                });
-            }
-        }
-    }
-
-    // Sample colors from image at each bead position
-    for (const pos of beadPositions) {
-        const imgX = Math.floor(pos.x);
-        const imgY = Math.floor(pos.y);
-        const idx = (imgY * imgWidth + imgX) * 4;
-        const r = data[idx];
-        const g = data[idx + 1];
-        const b = data[idx + 2];
-        colors.push({
-            r, g, b,
-            x: pos.x,
-            y: pos.y,
-            gridX: pos.gridX,
-            gridY: pos.gridY,
-            rowIndex: pos.rowIndex,
-            colIndex: pos.colIndex
-        });
-    }
-
-    // Quantize colors using k-means
-    const palette = quantizeColors(colors, colorCount);
-    state.colorPalette = palette;
-
-    // Map each bead to nearest palette color
-    const pattern = [];
-    for (let i = 0; i < colors.length; i++) {
-        const color = colors[i];
-        const paletteIndex = findNearestColor(color, palette);
-        pattern.push({
-            x: color.x,
-            y: color.y,
-            gridX: color.gridX,
-            gridY: color.gridY,
-            rowIndex: color.rowIndex,
-            colIndex: color.colIndex,
-            beadNumber: i + 1,
-            colorIndex: paletteIndex,
-            isRectangular: true
         });
     }
 
@@ -695,15 +585,8 @@ function drawPattern(pattern) {
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
 
-            // Show label based on grid type
-            let label;
-            if (bead.isRectangular) {
-                // For rectangular grid: "R-C" means row-column
-                label = `${bead.rowIndex}-${bead.colIndex}`;
-            } else {
-                // For radial grid: "R-P" means ring-position
-                label = `${bead.ringIndex}-${bead.positionInRing}`;
-            }
+            // Show ring and position: "3-5" means ring 3, position 5
+            const label = `${bead.ringIndex}-${bead.positionInRing}`;
             ctx.strokeText(label, px, py);
             ctx.fillText(label, px, py);
             ctx.restore();
@@ -761,77 +644,38 @@ function drawPattern(pattern) {
         ctx.restore();
     }
 
-    // Draw grid lines ON TOP if grid is enabled
+    // Draw radial guide lines ON TOP if grid is enabled
     if (state.showGrid) {
         ctx.save();
         ctx.globalAlpha = 0.3;
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 2;
 
-        // Draw radial grid for radial beads
-        const radialBeads = pattern.filter(b => !b.isRectangular && b.ringIndex !== undefined);
-        if (radialBeads.length > 0) {
-            // Draw radial lines
-            const numLines = 24;
-            for (let i = 0; i < numLines; i++) {
-                const angle = (i / numLines) * 2 * Math.PI;
-                const maxDist = Math.max(canvasWidth, canvasHeight);
-                ctx.beginPath();
-                ctx.moveTo(centerX, centerY);
-                ctx.lineTo(
-                    centerX + maxDist * Math.cos(angle),
-                    centerY + maxDist * Math.sin(angle)
-                );
-                ctx.stroke();
-            }
-
-            // Draw concentric circles at each ring
-            const rings = new Set(radialBeads.map(b => b.ringIndex).filter(r => r !== undefined));
-            ctx.globalAlpha = 0.4;
-            ctx.lineWidth = 2;
-            for (const ringIndex of rings) {
-                const beadsInRing = radialBeads.filter(b => b.ringIndex === ringIndex);
-                if (beadsInRing.length > 0 && beadsInRing[0].radius !== undefined) {
-                    const radius = beadsInRing[0].radius * displayScale;
-                    if (radius > 0) {
-                        ctx.beginPath();
-                        ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-                        ctx.stroke();
-                    }
-                }
-            }
+        // Draw radial lines
+        const numLines = 24;
+        for (let i = 0; i < numLines; i++) {
+            const angle = (i / numLines) * 2 * Math.PI;
+            const maxDist = Math.max(canvasWidth, canvasHeight);
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.lineTo(
+                centerX + maxDist * Math.cos(angle),
+                centerY + maxDist * Math.sin(angle)
+            );
+            ctx.stroke();
         }
 
-        // Draw rectangular grid for rectangular beads
-        const rectangularBeads = pattern.filter(b => b.isRectangular);
-        if (rectangularBeads.length > 0) {
-            ctx.globalAlpha = 0.3;
-            ctx.lineWidth = 1;
-            
-            // Get unique row and column positions
-            const rows = new Set(rectangularBeads.map(b => b.rowIndex).filter(r => r !== undefined));
-            const cols = new Set(rectangularBeads.map(b => b.colIndex).filter(c => c !== undefined));
-            
-            // Draw horizontal lines
-            for (const rowIndex of rows) {
-                const rowBeads = rectangularBeads.filter(b => b.rowIndex === rowIndex);
-                if (rowBeads.length > 0) {
-                    const y = rowBeads[0].y * displayScale + offsetY;
+        // Draw concentric circles at each ring
+        const rings = new Set(pattern.map(b => b.ringIndex));
+        ctx.globalAlpha = 0.4;
+        ctx.lineWidth = 2;
+        for (const ringIndex of rings) {
+            const beadsInRing = pattern.filter(b => b.ringIndex === ringIndex);
+            if (beadsInRing.length > 0) {
+                const radius = beadsInRing[0].radius * displayScale;
+                if (radius > 0) {
                     ctx.beginPath();
-                    ctx.moveTo(0, y);
-                    ctx.lineTo(canvasWidth, y);
-                    ctx.stroke();
-                }
-            }
-            
-            // Draw vertical lines
-            for (const colIndex of cols) {
-                const colBeads = rectangularBeads.filter(b => b.colIndex === colIndex);
-                if (colBeads.length > 0) {
-                    const x = colBeads[0].x * displayScale + offsetX;
-                    ctx.beginPath();
-                    ctx.moveTo(x, 0);
-                    ctx.lineTo(x, canvasHeight);
+                    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
                     ctx.stroke();
                 }
             }
