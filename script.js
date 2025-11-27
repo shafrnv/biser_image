@@ -5,6 +5,7 @@ const state = {
     startPoint: null,
     colorCount: 10,
     colorDiversity: 30,
+    colorDiversityEnabled: true,
     beadSize: 20,
     pattern: null,
     colorPalette: [],
@@ -33,12 +34,14 @@ const patternSection = document.getElementById('patternSection');
 // Inputs
 const colorCountInput = document.getElementById('colorCountInput');
 const colorDiversityInput = document.getElementById('colorDiversityInput');
+const colorDiversityEnabled = document.getElementById('colorDiversityEnabled');
 const beadSizeInput = document.getElementById('beadSizeInput');
 const colorCountSlider = document.getElementById('colorCountSlider');
 const colorDiversitySlider = document.getElementById('colorDiversitySlider');
 const beadSizeSlider = document.getElementById('beadSizeSlider');
 const displayScaleSlider = document.getElementById('displayScaleSlider');
 const displayScaleValue = document.getElementById('displayScaleValue');
+const pickerDiversityEnabled = document.getElementById('pickerDiversityEnabled');
 
 // Buttons
 const generateBtn = document.getElementById('generateBtn');
@@ -79,6 +82,20 @@ function setupEventListeners() {
     colorDiversitySlider.addEventListener('input', (e) => syncValue('colorDiversity', e.target.value));
     beadSizeInput.addEventListener('input', (e) => syncValue('beadSize', e.target.value));
     beadSizeSlider.addEventListener('input', (e) => syncValue('beadSize', e.target.value));
+    
+    // Color diversity enabled checkbox
+    if (colorDiversityEnabled) {
+        colorDiversityEnabled.addEventListener('change', (e) => {
+            state.colorDiversityEnabled = e.target.checked;
+            updateDiversityInputsState();
+        });
+    }
+    
+    if (pickerDiversityEnabled) {
+        pickerDiversityEnabled.addEventListener('change', (e) => {
+            updatePickerDiversityInputsState();
+        });
+    }
 
     // Display scale control
     displayScaleSlider.addEventListener('input', (e) => {
@@ -108,10 +125,36 @@ function syncInputs() {
     colorDiversityInput.value = colorDiversitySlider.value = state.colorDiversity;
     beadSizeInput.value = beadSizeSlider.value = state.beadSize;
     
+    // Sync color diversity enabled checkbox
+    if (colorDiversityEnabled) {
+        colorDiversityEnabled.checked = state.colorDiversityEnabled;
+    }
+    
     // Sync display scale slider
     if (displayScaleSlider && displayScaleValue) {
         displayScaleSlider.value = state.displayScaleMultiplier;
         displayScaleValue.textContent = `${state.displayScaleMultiplier.toFixed(1)}x`;
+    }
+    
+    // Update inputs state
+    updateDiversityInputsState();
+}
+
+function updateDiversityInputsState() {
+    const enabled = state.colorDiversityEnabled;
+    if (colorDiversityInput) {
+        colorDiversityInput.disabled = !enabled;
+    }
+    if (colorDiversitySlider) {
+        colorDiversitySlider.disabled = !enabled;
+    }
+}
+
+function updatePickerDiversityInputsState() {
+    const enabled = pickerDiversityEnabled ? pickerDiversityEnabled.checked : true;
+    const pickerDiversityInput = document.getElementById('pickerDiversityInput');
+    if (pickerDiversityInput) {
+        pickerDiversityInput.disabled = !enabled;
     }
 }
 
@@ -402,11 +445,11 @@ function generateSpiralGridPositions(gridWidth, gridHeight, centerX, centerY) {
 }
 
 function quantizeColors(colors, k) {
-    const { colorDiversity } = state;
+    const { colorDiversity, colorDiversityEnabled } = state;
 
-    // If diversity is requested, we generate more candidates first
+    // If diversity is enabled and requested, we generate more candidates first
     // then select the best k from them
-    const candidateK = colorDiversity > 0 ? Math.min(k * 3, 50) : k;
+    const candidateK = (colorDiversityEnabled && colorDiversity > 0) ? Math.min(k * 3, 50) : k;
 
     // Simple k-means clustering
     let centroids = [];
@@ -446,8 +489,8 @@ function quantizeColors(colors, k) {
     // Filter out empty centroids
     centroids = centroids.filter(c => c.count > 0);
 
-    // If we have no diversity requirement or not enough candidates, return top k
-    if (colorDiversity === 0 || centroids.length <= k) {
+    // If diversity is disabled, or we have no diversity requirement, or not enough candidates, return top k
+    if (!colorDiversityEnabled || colorDiversity === 0 || centroids.length <= k) {
         return centroids.sort((a, b) => b.count - a.count).slice(0, k);
     }
 
@@ -1125,6 +1168,14 @@ function openColorPickerModal() {
 
     selectedColors.clear();
     updateSelectedColorsList();
+    
+    // Sync picker diversity enabled checkbox with main settings (optional - can be independent)
+    if (pickerDiversityEnabled) {
+        pickerDiversityEnabled.checked = state.colorDiversityEnabled;
+    }
+    
+    // Update picker diversity inputs state
+    updatePickerDiversityInputsState();
 }
 
 function closeColorPickerModal() {
@@ -1249,7 +1300,8 @@ function extractColorsFromArea() {
     const colorLimitInput = document.getElementById('colorLimitInput');
     const pickerDiversityInput = document.getElementById('pickerDiversityInput');
     const colorLimit = parseInt(colorLimitInput.value) || 10;
-    const diversity = parseInt(pickerDiversityInput.value) || 30;
+    const diversityEnabled = pickerDiversityEnabled ? pickerDiversityEnabled.checked : true;
+    const diversity = diversityEnabled ? (parseInt(pickerDiversityInput.value) || 30) : 0;
 
     // Convert frequency map to array of objects
     let uniqueColors = Array.from(colorFrequency.entries()).map(([hex, count]) => {
@@ -1260,35 +1312,45 @@ function extractColorsFromArea() {
     // Sort by count descending
     uniqueColors.sort((a, b) => b.count - a.count);
 
-    // Apply diversity filter - select N colors maximizing diversity
+    // Apply diversity filter only if enabled
     const selectedHexes = [];
-    const minDistance = (diversity / 100) * 441.67;
+    
+    if (!diversityEnabled || diversity === 0) {
+        // If diversity is disabled, just take top N colors by frequency
+        for (const color of uniqueColors) {
+            if (selectedHexes.length >= colorLimit) break;
+            selectedHexes.push(color.hex);
+        }
+    } else {
+        // Apply diversity filter - select N colors maximizing diversity
+        const minDistance = (diversity / 100) * 441.67;
 
-    // Pass 1: Select colors that satisfy diversity threshold
-    for (const color of uniqueColors) {
-        if (selectedHexes.length >= colorLimit) break;
+        // Pass 1: Select colors that satisfy diversity threshold
+        for (const color of uniqueColors) {
+            if (selectedHexes.length >= colorLimit) break;
 
-        let isDiverse = true;
-        for (const existingHex of selectedHexes) {
-            const existingRgb = hexToRgb(existingHex);
-            const dist = Math.sqrt(colorDistance(color, existingRgb));
-            if (dist < minDistance) {
-                isDiverse = false;
-                break;
+            let isDiverse = true;
+            for (const existingHex of selectedHexes) {
+                const existingRgb = hexToRgb(existingHex);
+                const dist = Math.sqrt(colorDistance(color, existingRgb));
+                if (dist < minDistance) {
+                    isDiverse = false;
+                    break;
+                }
+            }
+
+            if (isDiverse) {
+                selectedHexes.push(color.hex);
             }
         }
 
-        if (isDiverse) {
-            selectedHexes.push(color.hex);
-        }
-    }
-
-    // Pass 2: Fill if needed
-    if (selectedHexes.length < colorLimit) {
-        for (const color of uniqueColors) {
-            if (selectedHexes.length >= colorLimit) break;
-            if (!selectedHexes.includes(color.hex)) {
-                selectedHexes.push(color.hex);
+        // Pass 2: Fill if needed
+        if (selectedHexes.length < colorLimit) {
+            for (const color of uniqueColors) {
+                if (selectedHexes.length >= colorLimit) break;
+                if (!selectedHexes.includes(color.hex)) {
+                    selectedHexes.push(color.hex);
+                }
             }
         }
     }

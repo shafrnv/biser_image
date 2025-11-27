@@ -436,6 +436,23 @@ body::before {
     box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
 }
 
+.setting-card input[type="number"]:disabled,
+.slider-container input[type="range"]:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.setting-card input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.color-limit-control input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 .setting-hint {
     margin-top: var(--spacing-xs);
     font-size: 0.8rem;
