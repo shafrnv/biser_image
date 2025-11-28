@@ -81,6 +81,7 @@ const toggleConnectionsBtn = document.getElementById('toggleConnectionsBtn');
 const exportBtn = document.getElementById('exportBtn');
 const addColorBtn = document.getElementById('addColorBtn');
 const applyPaletteBtn = document.getElementById('applyPaletteBtn');
+const mergeSimilarColorsBtn = document.getElementById('mergeSimilarColorsBtn');
 const cancelGenerationBtn = document.getElementById('cancelGenerationBtn');
 
 // Initialize
@@ -294,6 +295,9 @@ function setupEventListeners() {
     exportBtn.addEventListener('click', exportPattern);
     addColorBtn.addEventListener('click', addNewColor);
     applyPaletteBtn.addEventListener('click', applyPaletteChanges);
+    if (mergeSimilarColorsBtn) {
+        mergeSimilarColorsBtn.addEventListener('click', mergeSimilarColors);
+    }
     if (cancelGenerationBtn) {
         cancelGenerationBtn.addEventListener('click', cancelGeneration);
     }
@@ -2334,6 +2338,138 @@ function applyPaletteChanges() {
             loadingOverlay.classList.add('hidden');
         }
     }, 100);
+}
+
+function mergeSimilarColors() {
+    if (!state.pattern || !state.colorPalette || state.colorPalette.length < 2) {
+        alert('Сначала создайте схему');
+        return;
+    }
+
+    // Запрашиваем порог похожести
+    const threshold = prompt('Введите порог похожести цветов (0-100, рекомендуемое: 20-30):', '25');
+    if (threshold === null) return;
+    
+    let thresholdValue = parseFloat(threshold);
+    if (isNaN(thresholdValue) || thresholdValue < 0 || thresholdValue > 100) {
+        alert('Некорректное значение. Используется значение по умолчанию: 25');
+        thresholdValue = 25;
+    }
+
+    loadingOverlay.classList.remove('hidden');
+
+    setTimeout(() => {
+        try {
+            // Вычисляем минимальное расстояние для объединения
+            // threshold: 0-100, конвертируем в расстояние в цветовом пространстве
+            // Максимальное расстояние в RGB: sqrt(3 * 255^2) ≈ 441.67
+            const minDistance = (thresholdValue / 100) * 441.67;
+
+            // Группируем похожие цвета
+            const colorGroups = [];
+            const colorToGroup = new Map(); // Индекс цвета -> индекс группы
+
+            for (let i = 0; i < state.colorPalette.length; i++) {
+                const color = state.colorPalette[i];
+                let foundGroup = false;
+
+                // Ищем группу для этого цвета
+                for (let j = 0; j < colorGroups.length; j++) {
+                    const groupColor = colorGroups[j].representative;
+                    const dist = Math.sqrt(colorDistance(color, groupColor));
+                    
+                    if (dist <= minDistance) {
+                        // Добавляем цвет в существующую группу
+                        colorGroups[j].colors.push(i);
+                        colorGroups[j].count += getColorUsageCount(i);
+                        colorToGroup.set(i, j);
+                        foundGroup = true;
+                        break;
+                    }
+                }
+
+                if (!foundGroup) {
+                    // Создаем новую группу
+                    const groupIndex = colorGroups.length;
+                    colorGroups.push({
+                        representative: { ...color },
+                        colors: [i],
+                        count: getColorUsageCount(i)
+                    });
+                    colorToGroup.set(i, groupIndex);
+                }
+            }
+
+            // Вычисляем средний цвет для каждой группы (взвешенный по использованию)
+            const mergedPalette = [];
+            const oldToNewIndex = new Map(); // Старый индекс -> новый индекс
+
+            for (let i = 0; i < colorGroups.length; i++) {
+                const group = colorGroups[i];
+                
+                // Вычисляем средний цвет группы (взвешенный)
+                let totalR = 0, totalG = 0, totalB = 0, totalCount = 0;
+                
+                for (const oldIndex of group.colors) {
+                    const color = state.colorPalette[oldIndex];
+                    const count = getColorUsageCount(oldIndex);
+                    totalR += color.r * count;
+                    totalG += color.g * count;
+                    totalB += color.b * count;
+                    totalCount += count;
+                }
+
+                const mergedColor = {
+                    r: Math.round(totalR / totalCount),
+                    g: Math.round(totalG / totalCount),
+                    b: Math.round(totalB / totalCount)
+                };
+
+                mergedPalette.push(mergedColor);
+
+                // Сохраняем маппинг старых индексов на новый
+                for (const oldIndex of group.colors) {
+                    oldToNewIndex.set(oldIndex, i);
+                }
+            }
+
+            // Обновляем палитру
+            state.colorPalette = mergedPalette;
+
+            // Пересчитываем паттерн с новыми индексами
+            const newPattern = [];
+            for (const bead of state.pattern) {
+                const newColorIndex = oldToNewIndex.get(bead.colorIndex);
+                newPattern.push({
+                    ...bead,
+                    colorIndex: newColorIndex
+                });
+            }
+
+            const oldPaletteLength = state.colorPalette.length;
+            state.pattern = newPattern;
+            state.colorPalette = mergedPalette;
+            drawPattern(newPattern);
+
+            alert(`Объединено цветов: ${oldPaletteLength} → ${mergedPalette.length} (удалено ${oldPaletteLength - mergedPalette.length})`);
+        } catch (error) {
+            console.error('Error merging similar colors:', error);
+            alert('Ошибка при объединении похожих цветов');
+        } finally {
+            loadingOverlay.classList.add('hidden');
+        }
+    }, 100);
+}
+
+function getColorUsageCount(colorIndex) {
+    if (!state.pattern) return 0;
+    let count = 0;
+    for (const bead of state.pattern) {
+        if (bead.colorIndex === colorIndex) {
+            count++;
+        }
+    }
+    return count;
 }
 
 function hexToRgb(hex) {
