@@ -7,6 +7,8 @@ const state = {
     colorDiversity: 30,
     colorDiversityEnabled: true,
     beadSize: 20,
+    beadsHorizontal: 40,
+    beadsVertical: 30,
     pattern: null,
     colorPalette: [],
     zoom: 1,
@@ -36,9 +38,13 @@ const colorCountInput = document.getElementById('colorCountInput');
 const colorDiversityInput = document.getElementById('colorDiversityInput');
 const colorDiversityEnabled = document.getElementById('colorDiversityEnabled');
 const beadSizeInput = document.getElementById('beadSizeInput');
+const beadsHorizontalInput = document.getElementById('beadsHorizontalInput');
+const beadsVerticalInput = document.getElementById('beadsVerticalInput');
 const colorCountSlider = document.getElementById('colorCountSlider');
 const colorDiversitySlider = document.getElementById('colorDiversitySlider');
 const beadSizeSlider = document.getElementById('beadSizeSlider');
+const beadsHorizontalSlider = document.getElementById('beadsHorizontalSlider');
+const beadsVerticalSlider = document.getElementById('beadsVerticalSlider');
 const displayScaleSlider = document.getElementById('displayScaleSlider');
 const displayScaleValue = document.getElementById('displayScaleValue');
 const pickerDiversityEnabled = document.getElementById('pickerDiversityEnabled');
@@ -80,8 +86,28 @@ function setupEventListeners() {
     colorCountSlider.addEventListener('input', (e) => syncValue('colorCount', e.target.value));
     colorDiversityInput.addEventListener('input', (e) => syncValue('colorDiversity', e.target.value));
     colorDiversitySlider.addEventListener('input', (e) => syncValue('colorDiversity', e.target.value));
-    beadSizeInput.addEventListener('input', (e) => syncValue('beadSize', e.target.value));
-    beadSizeSlider.addEventListener('input', (e) => syncValue('beadSize', e.target.value));
+    
+    // Bead count inputs - calculate bead size automatically
+    beadsHorizontalInput.addEventListener('input', (e) => {
+        state.beadsHorizontal = parseInt(e.target.value);
+        beadsHorizontalSlider.value = e.target.value;
+        calculateBeadSize();
+    });
+    beadsHorizontalSlider.addEventListener('input', (e) => {
+        state.beadsHorizontal = parseInt(e.target.value);
+        beadsHorizontalInput.value = e.target.value;
+        calculateBeadSize();
+    });
+    beadsVerticalInput.addEventListener('input', (e) => {
+        state.beadsVertical = parseInt(e.target.value);
+        beadsVerticalSlider.value = e.target.value;
+        calculateBeadSize();
+    });
+    beadsVerticalSlider.addEventListener('input', (e) => {
+        state.beadsVertical = parseInt(e.target.value);
+        beadsVerticalInput.value = e.target.value;
+        calculateBeadSize();
+    });
     
     // Color diversity enabled checkbox
     if (colorDiversityEnabled) {
@@ -125,6 +151,20 @@ function syncInputs() {
     colorDiversityInput.value = colorDiversitySlider.value = state.colorDiversity;
     beadSizeInput.value = beadSizeSlider.value = state.beadSize;
     
+    // Sync bead count inputs
+    if (beadsHorizontalInput) {
+        beadsHorizontalInput.value = state.beadsHorizontal;
+    }
+    if (beadsHorizontalSlider) {
+        beadsHorizontalSlider.value = state.beadsHorizontal;
+    }
+    if (beadsVerticalInput) {
+        beadsVerticalInput.value = state.beadsVertical;
+    }
+    if (beadsVerticalSlider) {
+        beadsVerticalSlider.value = state.beadsVertical;
+    }
+    
     // Sync color diversity enabled checkbox
     if (colorDiversityEnabled) {
         colorDiversityEnabled.checked = state.colorDiversityEnabled;
@@ -138,6 +178,74 @@ function syncInputs() {
     
     // Update inputs state
     updateDiversityInputsState();
+}
+
+function calculateBeadSize() {
+    if (!state.imageData) return;
+    
+    const imgWidth = imageCanvas.width;
+    const imgHeight = imageCanvas.height;
+    
+    // Рассчитываем размер бусинки на основе количества бусинок и размеров изображения
+    // Берем минимальное значение из горизонтального и вертикального расчета,
+    // чтобы бусинки поместились в оба направления
+    const beadSizeHorizontal = imgWidth / state.beadsHorizontal;
+    const beadSizeVertical = imgHeight / state.beadsVertical;
+    
+    // Используем минимальное значение, чтобы все бусинки поместились
+    const calculatedBeadSize = Math.min(beadSizeHorizontal, beadSizeVertical);
+    
+    // Округляем до целого числа (минимальный размер 1 пиксель)
+    state.beadSize = Math.max(1, Math.round(calculatedBeadSize));
+    
+    // Обновляем отображение
+    if (beadSizeInput) {
+        beadSizeInput.value = state.beadSize;
+    }
+    if (beadSizeSlider) {
+        beadSizeSlider.value = Math.min(50, state.beadSize); // Для слайдера ограничиваем до 50
+    }
+    
+    // Обновляем подсказку
+    const beadSizeHint = document.getElementById('beadSizeHint');
+    if (beadSizeHint) {
+        beadSizeHint.textContent = `Размер рассчитывается автоматически: ${state.beadSize}px на основе ${state.beadsHorizontal}×${state.beadsVertical} бусинок`;
+    }
+}
+
+function updateBeadCountLimits() {
+    if (!state.imageData) return;
+    
+    const imgWidth = imageCanvas.width;
+    const imgHeight = imageCanvas.height;
+    
+    // Максимальное количество бусинок = размер изображения × 8
+    const maxHorizontal = imgWidth * 8;
+    const maxVertical = imgHeight * 8;
+    
+    // Обновляем максимальные значения для полей ввода
+    if (beadsHorizontalInput) {
+        beadsHorizontalInput.max = maxHorizontal;
+    }
+    if (beadsHorizontalSlider) {
+        beadsHorizontalSlider.max = maxHorizontal;
+    }
+    if (beadsVerticalInput) {
+        beadsVerticalInput.max = maxVertical;
+    }
+    if (beadsVerticalSlider) {
+        beadsVerticalSlider.max = maxVertical;
+    }
+    
+    // Ограничиваем текущие значения, если они превышают новые максимумы
+    if (state.beadsHorizontal > maxHorizontal) {
+        state.beadsHorizontal = maxHorizontal;
+    }
+    if (state.beadsVertical > maxVertical) {
+        state.beadsVertical = maxVertical;
+    }
+    
+    syncInputs();
 }
 
 function updateDiversityInputsState() {
@@ -240,6 +348,27 @@ function displayImage(img) {
     ctx.drawImage(img, 0, 0, width, height);
 
     state.imageData = ctx.getImageData(0, 0, width, height);
+    
+    // Обновляем отображение разрешения изображения
+    const resolutionText = document.getElementById('resolutionText');
+    if (resolutionText) {
+        resolutionText.textContent = `${width} × ${height} пикселей`;
+    }
+    const resolutionTextSettings = document.getElementById('resolutionTextSettings');
+    if (resolutionTextSettings) {
+        resolutionTextSettings.textContent = `${width} × ${height} пикселей`;
+    }
+    
+    // Обновляем лимиты для количества бусинок на основе размеров изображения
+    updateBeadCountLimits();
+    
+    // Изначально количество бусинок равно размеру изображения
+    state.beadsHorizontal = width;
+    state.beadsVertical = height;
+    
+    // Синхронизируем поля и рассчитываем размер бусинки
+    syncInputs();
+    calculateBeadSize();
 }
 
 function handleCanvasClick(e) {

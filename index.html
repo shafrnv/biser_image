@@ -73,6 +73,9 @@
                 <div class="canvas-hint" id="canvasHint">
                     <p>Кликни на изображение, чтобы выбрать центр разбиения</p>
                 </div>
+                <div class="image-resolution" id="imageResolution">
+                    <p>Разрешение изображения: <span id="resolutionText">-</span></p>
+                </div>
                 <div class="canvas-container">
                     <canvas id="imageCanvas"></canvas>
                     <div class="canvas-overlay hidden" id="canvasOverlay"></div>
@@ -85,14 +88,33 @@
                     <span class="step-number">3</span>
                     <h2>Настрой параметры</h2>
                 </div>
+                <div class="image-resolution" id="imageResolutionSettings">
+                    <p>Разрешение изображения: <span id="resolutionTextSettings">-</span></p>
+                </div>
                 <div class="settings-grid">
                     <div class="setting-card">
                         <label for="beadSizeInput">Размер бусинки (пикселей)</label>
-                        <input type="number" id="beadSizeInput" min="8" max="50" value="20">
+                        <input type="number" id="beadSizeInput" min="1" max="50" value="20" readonly>
                         <div class="slider-container">
-                            <input type="range" id="beadSizeSlider" min="8" max="50" value="20">
+                            <input type="range" id="beadSizeSlider" min="1" max="50" value="20" disabled>
                         </div>
-                        <p class="setting-hint">Сколько пикселей изображения занимает одна бусина</p>
+                        <p class="setting-hint" id="beadSizeHint">Размер рассчитывается автоматически на основе количества бусинок</p>
+                    </div>
+                    <div class="setting-card">
+                        <label for="beadsHorizontalInput">Бусинок по горизонтали</label>
+                        <input type="number" id="beadsHorizontalInput" min="1" max="6400" value="40">
+                        <div class="slider-container">
+                            <input type="range" id="beadsHorizontalSlider" min="1" max="6400" value="40">
+                        </div>
+                        <p class="setting-hint">Количество бусинок по ширине изображения</p>
+                    </div>
+                    <div class="setting-card">
+                        <label for="beadsVerticalInput">Бусинок по вертикали</label>
+                        <input type="number" id="beadsVerticalInput" min="1" max="4800" value="30">
+                        <div class="slider-container">
+                            <input type="range" id="beadsVerticalSlider" min="1" max="4800" value="30">
+                        </div>
+                        <p class="setting-hint">Количество бусинок по высоте изображения</p>
                     </div>
                     <div class="setting-card">
                         <label for="colorCountInput">Количество цветов</label>
