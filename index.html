@@ -30,8 +30,14 @@
                     Если вдруг интересно - то в математике это называется Концентрические кольца и Полярная система координат.
                     Это такие преобразования, которые афинные преобразования(масштаб и вращение) превращают в простое перемещение по осям координат(настоящее чудо планометрии)
                     <a href="https://ru.wikipedia.org/wiki/%D0%9A%D0%BE%D0%BD%D1%86%D0%B5%D0%BD%D1%82%D1%80%D0%B8%D1%87%D0%BD%D1%8B%D0%B5_%D0%BE%D0%B1%D1%8A%D0%B5%D0%BA%D1%82%D1%8B" target="_blank">Вот, можешь вдохновиться)))</a>
-                    Удачи тебе в твоих творениях. Обнимаю и Люблю!!! Ты звездочка, самая самая яркая и красивая!  
+                    Удачи тебе в твоих творениях. Обнимаю и Люблю!!! Ты звездочка, самая самая яркая и красивая!
+                    <br><br>
+                    <a href="https://xfloss.ru/" target="_blank" style="color: var(--primary-color); text-decoration: underline; font-weight: 600;">Генератор схем для вышивки крестиком →</a>
+                    Оно работает лучше, как мне кажется. Проблема была в радианной вышивке, её я не нашел в интернете. Ну и я не знаю как тебе вообще удобнее, в каком представлении, как распечатать эту схему в итоге.
+                    <br><br>
+                    Скорее всего ты вообще этим пользоваться не будешь. Но насрать) Позанимался херный в пустоту, ничего нового) 
                 </p>
+                
             </div>
         </header>
 
@@ -70,6 +76,38 @@
                     <span class="step-number">2</span>
                     <h2>Выбери центр разбиения, откуда кружочки будут распространяться</h2>
                 </div>
+                <div class="image-adjustments">
+                    <div class="adjustment-card">
+                        <div class="adjustment-header">
+                            <label for="brightnessInput">Яркость</label>
+                            <button class="btn-reset" id="resetBrightnessBtn" title="Сбросить">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                    <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <path d="M21 3v5h-5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <path d="M3 21v-5h5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <input type="range" id="brightnessSlider" min="-100" max="100" value="0">
+                        <input type="number" id="brightnessInput" min="-100" max="100" value="0">
+                    </div>
+                    <div class="adjustment-card">
+                        <div class="adjustment-header">
+                            <label for="contrastInput">Контрастность</label>
+                            <button class="btn-reset" id="resetContrastBtn" title="Сбросить">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                    <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <path d="M21 3v5h-5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <path d="M3 21v-5h5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <input type="range" id="contrastSlider" min="-100" max="100" value="0">
+                        <input type="number" id="contrastInput" min="-100" max="100" value="0">
+                    </div>
+                </div>
                 <div class="canvas-hint" id="canvasHint">
                     <p>Кликни на изображение, чтобы выбрать центр разбиения</p>
                 </div>
@@ -91,38 +129,68 @@
                 <div class="image-resolution" id="imageResolutionSettings">
                     <p>Разрешение изображения: <span id="resolutionTextSettings">-</span></p>
                 </div>
+                <div class="mode-selector">
+                    <label class="mode-option">
+                        <input type="radio" name="beadMode" value="count" checked>
+                        <span>Выбор количества бусинок</span>
+                    </label>
+                    <label class="mode-option">
+                        <input type="radio" name="beadMode" value="size">
+                        <span>Выбор размера бусинки</span>
+                    </label>
+                    <label class="mode-option">
+                        <input type="radio" name="beadMode" value="both">
+                        <span>Все опции вместе</span>
+                    </label>
+                </div>
+                <div class="mode-selector" style="margin-top: var(--spacing-md);">
+                    <label class="mode-option">
+                        <input type="radio" name="fillMode" value="radial" checked>
+                        <span>Круговое заполнение (для круговой вышивки)</span>
+                    </label>
+                    <label class="mode-option">
+                        <input type="radio" name="fillMode" value="polar">
+                        <span>Обычное заполнение (прямоугольная сетка)</span>
+                    </label>
+                </div>
                 <div class="settings-grid">
-                    <div class="setting-card">
+                    <div class="setting-card" id="beadSizeCard">
                         <label for="beadSizeInput">Размер бусинки (пикселей)</label>
-                        <input type="number" id="beadSizeInput" min="1" max="50" value="20" readonly>
+                        <input type="number" id="beadSizeInput" min="1" max="50" value="20">
                         <div class="slider-container">
-                            <input type="range" id="beadSizeSlider" min="1" max="50" value="20" disabled>
+                            <input type="range" id="beadSizeSlider" min="1" max="50" value="20">
                         </div>
-                        <p class="setting-hint" id="beadSizeHint">Размер рассчитывается автоматически на основе количества бусинок</p>
+                        <p class="setting-hint" id="beadSizeHint">Дополнительное масштабирование, применяемое к уже масштабированному изображению</p>
                     </div>
-                    <div class="setting-card">
+                    <div class="setting-card" id="beadsHorizontalCard">
                         <label for="beadsHorizontalInput">Бусинок по горизонтали</label>
                         <input type="number" id="beadsHorizontalInput" min="1" max="6400" value="40">
                         <div class="slider-container">
                             <input type="range" id="beadsHorizontalSlider" min="1" max="6400" value="40">
                         </div>
-                        <p class="setting-hint">Количество бусинок по ширине изображения</p>
+                        <p class="setting-hint" id="beadsHorizontalHint">Количество бусинок по ширине изображения</p>
                     </div>
-                    <div class="setting-card">
+                    <div class="setting-card" id="beadsVerticalCard">
                         <label for="beadsVerticalInput">Бусинок по вертикали</label>
                         <input type="number" id="beadsVerticalInput" min="1" max="4800" value="30">
                         <div class="slider-container">
                             <input type="range" id="beadsVerticalSlider" min="1" max="4800" value="30">
                         </div>
-                        <p class="setting-hint">Количество бусинок по высоте изображения</p>
+                        <p class="setting-hint" id="beadsVerticalHint">Количество бусинок по высоте изображения</p>
                     </div>
                     <div class="setting-card">
-                        <label for="colorCountInput">Количество цветов</label>
+                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                            <label for="colorCountInput" style="margin: 0; flex: 1;">Количество цветов</label>
+                            <label style="display: flex; align-items: center; gap: 5px; font-size: 0.9rem; font-weight: normal; cursor: pointer;">
+                                <input type="checkbox" id="limitColorsEnabled" checked style="cursor: pointer;">
+                                <span>Ограничивать</span>
+                            </label>
+                        </div>
                         <input type="number" id="colorCountInput" min="2" max="50" value="10">
                         <div class="slider-container">
                             <input type="range" id="colorCountSlider" min="2" max="50" value="10">
                         </div>
-                        <div class="setting-hint">Количество разных цветов бисера в схеме</div>
+                        <div class="setting-hint">Количество разных цветов бисера в схеме. Если не ограничивать, будут использованы все уникальные цвета изображения.</div>
                     </div>
                     <div class="setting-card">
                         <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
@@ -206,8 +274,11 @@
                         Соединения
                     </button>
                     <div class="scale-control">
-                        <label for="displayScaleSlider">Масштаб: <span id="displayScaleValue">1.0x</span></label>
-                        <input type="range" id="displayScaleSlider" min="0.1" max="25" step="0.1" value="1">
+                        <label for="displayScaleInput">Масштаб: <span id="displayScaleValue">1.0x</span></label>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <input type="number" id="displayScaleInput" min="0.1" max="25" step="0.1" value="1" style="width: 80px; padding: 5px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); color: var(--text-primary);">
+                            <input type="range" id="displayScaleSlider" min="0.1" max="25" step="0.1" value="1" style="flex: 1;">
+                        </div>
                     </div>
                     <button class="btn btn-primary" id="exportBtn">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -222,7 +293,7 @@
                         <canvas id="patternCanvas"></canvas>
                     </div>
                     <div class="pattern-sidebar">
-                        <div class="color-palette-editor">
+                        <div class="color-palette-editor" id="colorPaletteEditor">
                             <h3>Редактор палитры</h3>
                             <div class="palette-info">
                                 <p>Всего бусинок: <strong id="totalBeadsCount">0</strong></p>
@@ -319,6 +390,9 @@
         <div class="loading-overlay hidden" id="loadingOverlay">
             <div class="spinner"></div>
             <p>Создание схемы...</p>
+            <button class="btn btn-secondary" id="cancelGenerationBtn" style="margin-top: 20px;">
+                Отмена
+            </button>
         </div>
     </div>
 

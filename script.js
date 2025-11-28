@@ -1,21 +1,29 @@
 // Application State
 const state = {
     originalImage: null,
+    originalImageData: null, // Сохраняем оригинальные данные изображения
     imageData: null,
     startPoint: null,
     colorCount: 10,
     colorDiversity: 30,
     colorDiversityEnabled: true,
+    limitColors: true, // Ограничивать количество цветов
     beadSize: 20,
     beadsHorizontal: 40,
     beadsVertical: 30,
+    brightness: 0, // Яркость: -100 до 100
+    contrast: 0, // Контрастность: -100 до 100
+    beadMode: 'count', // 'count', 'size', 'both'
+    fillMode: 'radial', // 'radial' - круговое, 'polar' - обычное (полярные логарифмические координаты)
     pattern: null,
     colorPalette: [],
     zoom: 1,
     showGrid: true,
     showLabels: true,
     showConnections: false,
-    displayScaleMultiplier: 1.0
+    displayScaleMultiplier: 1.0,
+    isGenerating: false, // Флаг для отслеживания процесса генерации
+    generationCancelled: false // Флаг для отмены генерации
 };
 
 // DOM Elements
@@ -37,6 +45,8 @@ const patternSection = document.getElementById('patternSection');
 const colorCountInput = document.getElementById('colorCountInput');
 const colorDiversityInput = document.getElementById('colorDiversityInput');
 const colorDiversityEnabled = document.getElementById('colorDiversityEnabled');
+const limitColorsEnabled = document.getElementById('limitColorsEnabled');
+const colorPaletteEditor = document.getElementById('colorPaletteEditor');
 const beadSizeInput = document.getElementById('beadSizeInput');
 const beadsHorizontalInput = document.getElementById('beadsHorizontalInput');
 const beadsVerticalInput = document.getElementById('beadsVerticalInput');
@@ -47,7 +57,19 @@ const beadsHorizontalSlider = document.getElementById('beadsHorizontalSlider');
 const beadsVerticalSlider = document.getElementById('beadsVerticalSlider');
 const displayScaleSlider = document.getElementById('displayScaleSlider');
 const displayScaleValue = document.getElementById('displayScaleValue');
+const displayScaleInput = document.getElementById('displayScaleInput');
 const pickerDiversityEnabled = document.getElementById('pickerDiversityEnabled');
+const brightnessInput = document.getElementById('brightnessInput');
+const brightnessSlider = document.getElementById('brightnessSlider');
+const contrastInput = document.getElementById('contrastInput');
+const contrastSlider = document.getElementById('contrastSlider');
+const resetBrightnessBtn = document.getElementById('resetBrightnessBtn');
+const resetContrastBtn = document.getElementById('resetContrastBtn');
+const beadModeRadios = document.querySelectorAll('input[name="beadMode"]');
+const fillModeRadios = document.querySelectorAll('input[name="fillMode"]');
+const beadSizeCard = document.getElementById('beadSizeCard');
+const beadsHorizontalCard = document.getElementById('beadsHorizontalCard');
+const beadsVerticalCard = document.getElementById('beadsVerticalCard');
 
 // Buttons
 const generateBtn = document.getElementById('generateBtn');
@@ -59,6 +81,7 @@ const toggleConnectionsBtn = document.getElementById('toggleConnectionsBtn');
 const exportBtn = document.getElementById('exportBtn');
 const addColorBtn = document.getElementById('addColorBtn');
 const applyPaletteBtn = document.getElementById('applyPaletteBtn');
+const cancelGenerationBtn = document.getElementById('cancelGenerationBtn');
 
 // Initialize
 init();
@@ -87,26 +110,102 @@ function setupEventListeners() {
     colorDiversityInput.addEventListener('input', (e) => syncValue('colorDiversity', e.target.value));
     colorDiversitySlider.addEventListener('input', (e) => syncValue('colorDiversity', e.target.value));
     
-    // Bead count inputs - calculate bead size automatically
+    // Bead mode selector
+    beadModeRadios.forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            state.beadMode = e.target.value;
+            updateBeadMode();
+        });
+    });
+    
+    // Fill mode selector
+    fillModeRadios.forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            state.fillMode = e.target.value;
+            updateFillModeUI();
+        });
+    });
+    
+    // Bead size inputs - update scale hint or calculate count
+    beadSizeInput.addEventListener('input', (e) => {
+        state.beadSize = parseInt(e.target.value);
+        beadSizeSlider.value = e.target.value;
+        if (state.beadMode === 'size') {
+            calculateBeadCountFromSize();
+        }
+        updateScaleHint();
+    });
+    beadSizeSlider.addEventListener('input', (e) => {
+        state.beadSize = parseInt(e.target.value);
+        beadSizeInput.value = e.target.value;
+        if (state.beadMode === 'size') {
+            calculateBeadCountFromSize();
+        }
+        updateScaleHint();
+    });
+    
+    // Bead count inputs - update scale hint or calculate size
     beadsHorizontalInput.addEventListener('input', (e) => {
         state.beadsHorizontal = parseInt(e.target.value);
         beadsHorizontalSlider.value = e.target.value;
-        calculateBeadSize();
+        if (state.beadMode === 'count') {
+            calculateBeadSizeFromCount();
+        }
+        updateScaleHint();
     });
     beadsHorizontalSlider.addEventListener('input', (e) => {
         state.beadsHorizontal = parseInt(e.target.value);
         beadsHorizontalInput.value = e.target.value;
-        calculateBeadSize();
+        if (state.beadMode === 'count') {
+            calculateBeadSizeFromCount();
+        }
+        updateScaleHint();
     });
     beadsVerticalInput.addEventListener('input', (e) => {
         state.beadsVertical = parseInt(e.target.value);
         beadsVerticalSlider.value = e.target.value;
-        calculateBeadSize();
+        if (state.beadMode === 'count') {
+            calculateBeadSizeFromCount();
+        }
+        updateScaleHint();
     });
     beadsVerticalSlider.addEventListener('input', (e) => {
         state.beadsVertical = parseInt(e.target.value);
         beadsVerticalInput.value = e.target.value;
-        calculateBeadSize();
+        if (state.beadMode === 'count') {
+            calculateBeadSizeFromCount();
+        }
+        updateScaleHint();
+    });
+    
+    // Brightness and contrast controls - only update state, don't apply filters yet
+    brightnessInput.addEventListener('input', (e) => {
+        state.brightness = parseInt(e.target.value);
+        brightnessSlider.value = e.target.value;
+    });
+    brightnessSlider.addEventListener('input', (e) => {
+        state.brightness = parseInt(e.target.value);
+        brightnessInput.value = e.target.value;
+    });
+    contrastInput.addEventListener('input', (e) => {
+        state.contrast = parseInt(e.target.value);
+        contrastSlider.value = e.target.value;
+    });
+    contrastSlider.addEventListener('input', (e) => {
+        state.contrast = parseInt(e.target.value);
+        contrastInput.value = e.target.value;
+    });
+    
+    // Reset buttons - only reset values, don't apply filters
+    resetBrightnessBtn.addEventListener('click', () => {
+        state.brightness = 0;
+        brightnessInput.value = 0;
+        brightnessSlider.value = 0;
+    });
+    resetContrastBtn.addEventListener('click', () => {
+        state.contrast = 0;
+        contrastInput.value = 0;
+        contrastSlider.value = 0;
     });
     
     // Color diversity enabled checkbox
@@ -117,6 +216,14 @@ function setupEventListeners() {
         });
     }
     
+    // Limit colors enabled checkbox
+    if (limitColorsEnabled) {
+        limitColorsEnabled.addEventListener('change', (e) => {
+            state.limitColors = e.target.checked;
+            updateLimitColorsState();
+        });
+    }
+    
     if (pickerDiversityEnabled) {
         pickerDiversityEnabled.addEventListener('change', (e) => {
             updatePickerDiversityInputsState();
@@ -124,13 +231,56 @@ function setupEventListeners() {
     }
 
     // Display scale control
-    displayScaleSlider.addEventListener('input', (e) => {
-        state.displayScaleMultiplier = parseFloat(e.target.value);
-        displayScaleValue.textContent = `${state.displayScaleMultiplier.toFixed(1)}x`;
-        if (state.pattern) {
-            drawPattern(state.pattern);
-        }
-    });
+    if (displayScaleSlider) {
+        displayScaleSlider.addEventListener('input', (e) => {
+            state.displayScaleMultiplier = parseFloat(e.target.value);
+            if (displayScaleInput) {
+                displayScaleInput.value = state.displayScaleMultiplier;
+            }
+            if (displayScaleValue) {
+                displayScaleValue.textContent = `${state.displayScaleMultiplier.toFixed(1)}x`;
+            }
+            if (state.pattern) {
+                drawPattern(state.pattern);
+            }
+        });
+    }
+    
+    if (displayScaleInput) {
+        displayScaleInput.addEventListener('input', (e) => {
+            let value = parseFloat(e.target.value);
+            // Ограничиваем значение в допустимых пределах
+            value = Math.max(0.1, Math.min(25, value));
+            state.displayScaleMultiplier = value;
+            if (displayScaleSlider) {
+                displayScaleSlider.value = value;
+            }
+            if (displayScaleValue) {
+                displayScaleValue.textContent = `${value.toFixed(1)}x`;
+            }
+            if (state.pattern) {
+                drawPattern(state.pattern);
+            }
+        });
+        
+        // Обновляем значение при потере фокуса, если оно было некорректным
+        displayScaleInput.addEventListener('blur', (e) => {
+            let value = parseFloat(e.target.value);
+            if (isNaN(value) || value < 0.1) {
+                value = 0.1;
+            } else if (value > 25) {
+                value = 25;
+            }
+            state.displayScaleMultiplier = value;
+            displayScaleInput.value = value;
+            if (displayScaleSlider) {
+                displayScaleSlider.value = value;
+            }
+            if (displayScaleValue) {
+                displayScaleValue.textContent = `${value.toFixed(1)}x`;
+            }
+        });
+    }
 
     // Buttons
     generateBtn.addEventListener('click', generatePattern);
@@ -144,12 +294,21 @@ function setupEventListeners() {
     exportBtn.addEventListener('click', exportPattern);
     addColorBtn.addEventListener('click', addNewColor);
     applyPaletteBtn.addEventListener('click', applyPaletteChanges);
+    if (cancelGenerationBtn) {
+        cancelGenerationBtn.addEventListener('click', cancelGeneration);
+    }
 }
 
 function syncInputs() {
     colorCountInput.value = colorCountSlider.value = state.colorCount;
     colorDiversityInput.value = colorDiversitySlider.value = state.colorDiversity;
     beadSizeInput.value = beadSizeSlider.value = state.beadSize;
+    
+    // Sync brightness and contrast
+    if (brightnessInput) brightnessInput.value = state.brightness;
+    if (brightnessSlider) brightnessSlider.value = state.brightness;
+    if (contrastInput) contrastInput.value = state.contrast;
+    if (contrastSlider) contrastSlider.value = state.contrast;
     
     // Sync bead count inputs
     if (beadsHorizontalInput) {
@@ -170,17 +329,71 @@ function syncInputs() {
         colorDiversityEnabled.checked = state.colorDiversityEnabled;
     }
     
-    // Sync display scale slider
-    if (displayScaleSlider && displayScaleValue) {
+    // Sync display scale slider and input
+    if (displayScaleSlider) {
         displayScaleSlider.value = state.displayScaleMultiplier;
+    }
+    if (displayScaleInput) {
+        displayScaleInput.value = state.displayScaleMultiplier;
+    }
+    if (displayScaleValue) {
         displayScaleValue.textContent = `${state.displayScaleMultiplier.toFixed(1)}x`;
     }
     
     // Update inputs state
     updateDiversityInputsState();
+    updateLimitColorsState();
+    
+    // Sync limit colors checkbox
+    if (limitColorsEnabled) {
+        limitColorsEnabled.checked = state.limitColors;
+    }
+    
+    // Sync bead mode
+    if (beadModeRadios && beadModeRadios.length > 0) {
+        const selectedRadio = Array.from(beadModeRadios).find(r => r.value === state.beadMode);
+        if (selectedRadio) {
+            selectedRadio.checked = true;
+        }
+        updateBeadMode();
+    }
+    
+    // Sync fill mode
+    if (fillModeRadios && fillModeRadios.length > 0) {
+        const selectedFillRadio = Array.from(fillModeRadios).find(r => r.value === state.fillMode);
+        if (selectedFillRadio) {
+            selectedFillRadio.checked = true;
+        }
+        updateFillModeUI();
+    }
 }
 
-function calculateBeadSize() {
+function updateBeadMode() {
+    // Показываем/скрываем поля в зависимости от режима
+    if (state.beadMode === 'count') {
+        // Только количество бусинок
+        if (beadSizeCard) beadSizeCard.style.display = 'none';
+        if (beadsHorizontalCard) beadsHorizontalCard.style.display = 'block';
+        if (beadsVerticalCard) beadsVerticalCard.style.display = 'block';
+        // Рассчитываем размер бусинки из количества
+        calculateBeadSizeFromCount();
+    } else if (state.beadMode === 'size') {
+        // Только размер бусинки
+        if (beadSizeCard) beadSizeCard.style.display = 'block';
+        if (beadsHorizontalCard) beadsHorizontalCard.style.display = 'none';
+        if (beadsVerticalCard) beadsVerticalCard.style.display = 'none';
+        // Рассчитываем количество бусинок из размера
+        calculateBeadCountFromSize();
+    } else if (state.beadMode === 'both') {
+        // Все опции вместе
+        if (beadSizeCard) beadSizeCard.style.display = 'block';
+        if (beadsHorizontalCard) beadsHorizontalCard.style.display = 'block';
+        if (beadsVerticalCard) beadsVerticalCard.style.display = 'block';
+    }
+    updateScaleHint();
+}
+
+function calculateBeadSizeFromCount() {
     if (!state.imageData) return;
     
     const imgWidth = imageCanvas.width;
@@ -205,11 +418,67 @@ function calculateBeadSize() {
     if (beadSizeSlider) {
         beadSizeSlider.value = Math.min(50, state.beadSize); // Для слайдера ограничиваем до 50
     }
+}
+
+function calculateBeadCountFromSize() {
+    if (!state.imageData) return;
     
-    // Обновляем подсказку
+    const imgWidth = imageCanvas.width;
+    const imgHeight = imageCanvas.height;
+    
+    // Рассчитываем количество бусинок на основе размера бусинки и размеров изображения
+    if (state.beadSize > 0) {
+        state.beadsHorizontal = Math.max(1, Math.round(imgWidth / state.beadSize));
+        state.beadsVertical = Math.max(1, Math.round(imgHeight / state.beadSize));
+    }
+    
+    // Обновляем отображение
+    if (beadsHorizontalInput) {
+        beadsHorizontalInput.value = state.beadsHorizontal;
+    }
+    if (beadsHorizontalSlider) {
+        beadsHorizontalSlider.value = state.beadsHorizontal;
+    }
+    if (beadsVerticalInput) {
+        beadsVerticalInput.value = state.beadsVertical;
+    }
+    if (beadsVerticalSlider) {
+        beadsVerticalSlider.value = state.beadsVertical;
+    }
+}
+
+
+function updateScaleHint() {
+    if (!state.imageData) return;
+    
+    const imgWidth = imageCanvas.width;
+    const imgHeight = imageCanvas.height;
+    
+    // Рассчитываем базовое масштабирование от количества бусинок
+    // Базовое масштабирование = размер_изображения / количество_бусинок
+    const baseScaleHorizontal = imgWidth / state.beadsHorizontal;
+    const baseScaleVertical = imgHeight / state.beadsVertical;
+    
+    // Применяем дополнительное масштабирование через размер бусинки
+    // Итоговое масштабирование = базовое_масштабирование / размер_бусинки
+    const finalScaleHorizontal = baseScaleHorizontal / state.beadSize;
+    const finalScaleVertical = baseScaleVertical / state.beadSize;
+    
+    // Обновляем подсказки
     const beadSizeHint = document.getElementById('beadSizeHint');
     if (beadSizeHint) {
-        beadSizeHint.textContent = `Размер рассчитывается автоматически: ${state.beadSize}px на основе ${state.beadsHorizontal}×${state.beadsVertical} бусинок`;
+        const avgScale = ((finalScaleHorizontal + finalScaleVertical) / 2).toFixed(2);
+        beadSizeHint.textContent = `Дополнительное масштабирование. Итоговое масштабирование: ${avgScale}x`;
+    }
+    
+    const beadsHorizontalHint = document.getElementById('beadsHorizontalHint');
+    if (beadsHorizontalHint) {
+        beadsHorizontalHint.textContent = `Количество бусинок по ширине изображения. Базовое масштабирование: ${baseScaleHorizontal.toFixed(2)}x, итоговое: ${finalScaleHorizontal.toFixed(2)}x`;
+    }
+    
+    const beadsVerticalHint = document.getElementById('beadsVerticalHint');
+    if (beadsVerticalHint) {
+        beadsVerticalHint.textContent = `Количество бусинок по высоте изображения. Базовое масштабирование: ${baseScaleVertical.toFixed(2)}x, итоговое: ${finalScaleVertical.toFixed(2)}x`;
     }
 }
 
@@ -263,6 +532,65 @@ function updatePickerDiversityInputsState() {
     const pickerDiversityInput = document.getElementById('pickerDiversityInput');
     if (pickerDiversityInput) {
         pickerDiversityInput.disabled = !enabled;
+    }
+}
+
+function updateFillModeUI() {
+    // Для обычного режима скрываем подсказку о выборе точки центра
+    // Для кругового режима показываем
+    const canvasHint = document.getElementById('canvasHint');
+    if (canvasHint) {
+        if (state.fillMode === 'polar') {
+            // Для обычного режима точка не требуется
+            canvasHint.style.display = 'none';
+            // Автоматически устанавливаем центр изображения если он не установлен
+            if (imageCanvas && imageCanvas.width && imageCanvas.height && !state.startPoint) {
+                state.startPoint = {
+                    x: imageCanvas.width / 2,
+                    y: imageCanvas.height / 2
+                };
+            }
+        } else {
+            // Для кругового режима показываем подсказку
+            canvasHint.style.display = 'block';
+        }
+    }
+}
+
+function updateLimitColorsState() {
+    const enabled = state.limitColors;
+    
+    // Показываем/скрываем поля количества цветов
+    if (colorCountInput) {
+        colorCountInput.disabled = !enabled;
+    }
+    if (colorCountSlider) {
+        colorCountSlider.disabled = !enabled;
+    }
+    
+    // Когда ограничение выключено, выключаем разнообразие цветов
+    if (!enabled) {
+        state.colorDiversityEnabled = false;
+        if (colorDiversityEnabled) {
+            colorDiversityEnabled.checked = false;
+        }
+        updateDiversityInputsState();
+    }
+    
+    // Отключаем поля разнообразия цветов когда ограничение выключено
+    if (colorDiversityInput) {
+        colorDiversityInput.disabled = !enabled;
+    }
+    if (colorDiversitySlider) {
+        colorDiversitySlider.disabled = !enabled;
+    }
+    if (colorDiversityEnabled) {
+        colorDiversityEnabled.disabled = !enabled;
+    }
+    
+    // Редактор палитры всегда показывается
+    if (colorPaletteEditor) {
+        colorPaletteEditor.style.display = 'block';
     }
 }
 
@@ -347,7 +675,17 @@ function displayImage(img) {
     imageCanvas.height = height;
     ctx.drawImage(img, 0, 0, width, height);
 
-    state.imageData = ctx.getImageData(0, 0, width, height);
+    // Сохраняем оригинальные данные изображения
+    state.originalImageData = ctx.getImageData(0, 0, width, height);
+    
+    // Используем оригинальные данные для imageData (без фильтров)
+    state.imageData = state.originalImageData;
+    
+    // Сбрасываем яркость и контрастность при загрузке нового изображения
+    state.brightness = 0;
+    state.contrast = 0;
+    
+    // Не применяем фильтры сразу - только при создании схемы
     
     // Обновляем отображение разрешения изображения
     const resolutionText = document.getElementById('resolutionText');
@@ -366,9 +704,76 @@ function displayImage(img) {
     state.beadsHorizontal = width;
     state.beadsVertical = height;
     
-    // Синхронизируем поля и рассчитываем размер бусинки
+    // Размер бусинки остается как есть (дополнительное масштабирование)
+    // Не пересчитываем автоматически
+    
+    // Синхронизируем поля
     syncInputs();
-    calculateBeadSize();
+    
+    // Обновляем режим работы с бусинками
+    updateBeadMode();
+    
+    // Обновляем подсказки с масштабированием
+    updateScaleHint();
+}
+
+function applyImageFilters() {
+    if (!state.originalImageData || !imageCanvas) return;
+    
+    const ctx = imageCanvas.getContext('2d');
+    const width = imageCanvas.width;
+    const height = imageCanvas.height;
+    
+    // Создаем копию оригинальных данных
+    const imageData = new ImageData(
+        new Uint8ClampedArray(state.originalImageData.data),
+        width,
+        height
+    );
+    const data = imageData.data;
+    
+    // Применяем яркость и контрастность
+    const brightness = state.brightness; // -100 до 100
+    const contrast = state.contrast; // -100 до 100
+    
+    // Конвертируем контрастность в множитель
+    // contrast: -100 до 100, конвертируем в -1.0 до 1.0
+    const contrastValue = Math.max(-99, Math.min(99, contrast)) / 100;
+    const contrastFactor = (1.0 + contrastValue) / (1.0 - contrastValue);
+    
+    for (let i = 0; i < data.length; i += 4) {
+        // Начинаем с оригинальных значений
+        let r = data[i];
+        let g = data[i + 1];
+        let b = data[i + 2];
+        
+        // Применяем контрастность (сначала, чтобы не влиять на яркость)
+        if (contrast !== 0) {
+            r = contrastFactor * (r - 128) + 128;
+            g = contrastFactor * (g - 128) + 128;
+            b = contrastFactor * (b - 128) + 128;
+        }
+        
+        // Применяем яркость
+        r = r + brightness;
+        g = g + brightness;
+        b = b + brightness;
+        
+        // Ограничиваем значения в диапазоне 0-255
+        data[i] = Math.max(0, Math.min(255, r));
+        data[i + 1] = Math.max(0, Math.min(255, g));
+        data[i + 2] = Math.max(0, Math.min(255, b));
+        // alpha канал не трогаем
+    }
+    
+    // Рисуем обработанное изображение на canvas
+    ctx.putImageData(imageData, 0, 0);
+    
+    // Обновляем imageData для использования в схеме
+    state.imageData = imageData;
+    
+    // Не вызываем generatePattern() здесь, чтобы избежать бесконечного цикла
+    // generatePattern() сам вызывает applyImageFilters() когда нужно
 }
 
 function handleCanvasClick(e) {
@@ -397,32 +802,102 @@ function handleCanvasClick(e) {
     ctx.stroke();
 }
 
+// Cancel generation
+function cancelGeneration() {
+    state.generationCancelled = true;
+    state.isGenerating = false;
+    loadingOverlay.classList.add('hidden');
+}
+
 // Pattern generation
 async function generatePattern() {
-    if (!state.originalImage || !state.startPoint) {
-        alert('Пожалуйста, загрузите изображение и выберите стартовую точку');
+    if (!state.originalImage) {
+        alert('Пожалуйста, загрузите изображение');
         return;
     }
+    
+    // Для обычного режима не требуется выбор точки центра
+    // Используем центр изображения по умолчанию
+    if (state.fillMode === 'polar') {
+        if (!state.startPoint) {
+            state.startPoint = {
+                x: imageCanvas.width / 2,
+                y: imageCanvas.height / 2
+            };
+        }
+    } else {
+        // Для кругового режима точка центра обязательна
+        if (!state.startPoint) {
+            alert('Пожалуйста, выберите стартовую точку (центр разбиения)');
+            return;
+        }
+    }
+
+    // Сбрасываем флаги отображения при создании новой схемы
+    state.showGrid = false;
+    state.showLabels = false;
+    state.showConnections = false;
+    
+    // Обновляем UI кнопок
+    if (toggleGridBtn) toggleGridBtn.classList.remove('active');
+    if (toggleLabelsBtn) toggleLabelsBtn.classList.remove('active');
+    if (toggleConnectionsBtn) toggleConnectionsBtn.classList.remove('active');
+
+    // Сбрасываем флаги генерации
+    state.isGenerating = true;
+    state.generationCancelled = false;
 
     loadingOverlay.classList.remove('hidden');
 
     // Use setTimeout to allow UI to update
     setTimeout(() => {
         try {
-            // Create pattern with radial sampling
-            const pattern = createRadialPattern();
+            // Проверяем отмену
+            if (state.generationCancelled) {
+                return;
+            }
+
+            // Применяем фильтры яркости и контрастности перед созданием схемы
+            applyImageFilters();
+            
+            // Проверяем отмену после применения фильтров
+            if (state.generationCancelled) {
+                return;
+            }
+            
+            // Create pattern based on selected fill mode
+            let pattern;
+            if (state.fillMode === 'radial') {
+                pattern = createRadialPattern();
+            } else {
+                pattern = createPolarPattern();
+            }
+            
+            // Проверяем отмену после создания паттерна
+            if (state.generationCancelled || !pattern) {
+                return;
+            }
+            
             state.pattern = pattern;
 
             // Draw pattern
             drawPattern(pattern);
 
+            // Проверяем отмену перед показом секции
+            if (state.generationCancelled) {
+                return;
+            }
+
             // Show pattern section
             patternSection.classList.remove('hidden');
             patternSection.scrollIntoView({ behavior: 'smooth' });
         } catch (error) {
-            console.error('Error generating pattern:', error);
-            alert('Ошибка при создании схемы');
+            if (!state.generationCancelled) {
+                console.error('Error generating pattern:', error);
+                alert('Ошибка при создании схемы');
+            }
         } finally {
+            state.isGenerating = false;
             loadingOverlay.classList.add('hidden');
         }
     }, 100);
@@ -464,6 +939,11 @@ function createRadialPattern() {
     let ringIndex = 1;
 
     while (currentRadius <= maxRadius) {
+        // Проверяем отмену в цикле
+        if (state.generationCancelled) {
+            return null;
+        }
+        
         const circumference = 2 * Math.PI * currentRadius;
         // Calculate number of beads that fit in this circle with proper spacing
         const beadsInCircle = Math.max(6, Math.floor(circumference / beadSpacing));
@@ -532,6 +1012,87 @@ function createRadialPattern() {
     return pattern;
 }
 
+function createPolarPattern() {
+    const { colorCount, beadsHorizontal, beadsVertical } = state;
+    const { data } = state.imageData;
+    const imgWidth = imageCanvas.width;
+    const imgHeight = imageCanvas.height;
+
+    // Create a regular rectangular grid - simple pixel-to-bead conversion
+    const gridStepX = imgWidth / beadsHorizontal;
+    const gridStepY = imgHeight / beadsVertical;
+
+    const beadPositions = [];
+    const colors = [];
+
+    // Generate regular grid positions - simple rectangular grid
+    for (let row = 0; row < beadsVertical; row++) {
+        // Проверяем отмену в цикле
+        if (state.generationCancelled) {
+            return null;
+        }
+        
+        for (let col = 0; col < beadsHorizontal; col++) {
+            // Calculate center position of each grid cell
+            const x = col * gridStepX + gridStepX / 2;
+            const y = row * gridStepY + gridStepY / 2;
+
+            // Sample color from image at this position
+            const imgX = Math.floor(Math.max(0, Math.min(imgWidth - 1, x)));
+            const imgY = Math.floor(Math.max(0, Math.min(imgHeight - 1, y)));
+            const idx = (imgY * imgWidth + imgX) * 4;
+            const r = data[idx];
+            const g = data[idx + 1];
+            const b = data[idx + 2];
+
+            // For regular grid, we use row/col as ring/position for compatibility
+            beadPositions.push({
+                x,
+                y,
+                radius: 0, // Not used in regular grid
+                angle: 0, // Not used in regular grid
+                ringIndex: row,
+                positionInRing: col,
+                gridRow: row,
+                gridCol: col
+            });
+
+            colors.push({
+                r, g, b,
+                x,
+                y,
+                radius: 0,
+                angle: 0,
+                ringIndex: row,
+                positionInRing: col
+            });
+        }
+    }
+
+    // Quantize colors using k-means
+    const palette = quantizeColors(colors, colorCount);
+    state.colorPalette = palette;
+
+    // Map each bead to nearest palette color
+    const pattern = [];
+    for (let i = 0; i < colors.length; i++) {
+        const color = colors[i];
+        const paletteIndex = findNearestColor(color, palette);
+        pattern.push({
+            x: color.x,
+            y: color.y,
+            radius: color.radius,
+            angle: color.angle,
+            ringIndex: color.ringIndex,
+            positionInRing: color.positionInRing,
+            beadNumber: i + 1,
+            colorIndex: paletteIndex
+        });
+    }
+
+    return pattern;
+}
+
 function generateSpiralGridPositions(gridWidth, gridHeight, centerX, centerY) {
     const positions = [];
     const visited = new Set();
@@ -574,7 +1135,22 @@ function generateSpiralGridPositions(gridWidth, gridHeight, centerX, centerY) {
 }
 
 function quantizeColors(colors, k) {
-    const { colorDiversity, colorDiversityEnabled } = state;
+    const { colorDiversity, colorDiversityEnabled, limitColors } = state;
+
+    // Если ограничение цветов отключено, возвращаем все уникальные цвета
+    if (!limitColors) {
+        // Собираем все уникальные цвета
+        const uniqueColors = new Map();
+        for (const color of colors) {
+            const key = `${color.r},${color.g},${color.b}`;
+            if (!uniqueColors.has(key)) {
+                uniqueColors.set(key, { r: color.r, g: color.g, b: color.b, count: 0 });
+            }
+            uniqueColors.get(key).count++;
+        }
+        // Возвращаем все уникальные цвета, отсортированные по частоте
+        return Array.from(uniqueColors.values()).sort((a, b) => b.count - a.count);
+    }
 
     // If diversity is enabled and requested, we generate more candidates first
     // then select the best k from them
@@ -758,57 +1334,108 @@ function drawPattern(pattern) {
             ctx.textBaseline = 'middle';
 
             // Show ring and position: "3-5" means ring 3, position 5
-            const label = `${bead.ringIndex}-${bead.positionInRing}`;
+            // For regular grid, ringIndex is row and positionInRing is col
+            const label = state.fillMode === 'radial' 
+                ? `${bead.ringIndex}-${bead.positionInRing}` 
+                : `${bead.ringIndex}-${bead.positionInRing}`;
             ctx.strokeText(label, px, py);
             ctx.fillText(label, px, py);
             ctx.restore();
         }
     }
 
-    // Draw connections between beads in each ring if enabled
+    // Draw connections between beads if enabled
     if (state.showConnections) {
         ctx.save();
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
         ctx.lineWidth = Math.max(1, displayBeadSize / 15);
         
-        // Group beads by ring
-        const beadsByRing = {};
-        for (const bead of pattern) {
-            if (!beadsByRing[bead.ringIndex]) {
-                beadsByRing[bead.ringIndex] = [];
+        if (state.fillMode === 'radial') {
+            // Group beads by ring for radial mode
+            const beadsByRing = {};
+            for (const bead of pattern) {
+                if (!beadsByRing[bead.ringIndex]) {
+                    beadsByRing[bead.ringIndex] = [];
+                }
+                beadsByRing[bead.ringIndex].push(bead);
             }
-            beadsByRing[bead.ringIndex].push(bead);
-        }
-        
-        // Draw connections for each ring
-        for (const ringIndex in beadsByRing) {
-            const ringBeads = beadsByRing[ringIndex];
             
-            // Sort by angle to connect in circular order
-            ringBeads.sort((a, b) => a.angle - b.angle);
+            // Draw connections for each ring
+            for (const ringIndex in beadsByRing) {
+                const ringBeads = beadsByRing[ringIndex];
+                
+                // Sort by angle to connect in circular order
+                ringBeads.sort((a, b) => a.angle - b.angle);
+                
+                // Maximum distance for connection (to avoid connecting far-apart beads)
+                const maxConnectionDistance = displayBeadSize * 2.5;
+                
+                // Connect each bead to the next one by angle
+                for (let i = 0; i < ringBeads.length; i++) {
+                    const currentBead = ringBeads[i];
+                    const nextBead = ringBeads[(i + 1) % ringBeads.length];
+                    
+                    const px1 = currentBead.x * displayScale + offsetX;
+                    const py1 = currentBead.y * displayScale + offsetY;
+                    const px2 = nextBead.x * displayScale + offsetX;
+                    const py2 = nextBead.y * displayScale + offsetY;
+                    
+                    // Calculate distance between beads
+                    const distance = Math.sqrt((px2 - px1) ** 2 + (py2 - py1) ** 2);
+                    
+                    // Only connect if beads are close enough (neighbors in the ring)
+                    if (distance <= maxConnectionDistance) {
+                        ctx.beginPath();
+                        ctx.moveTo(px1, py1);
+                        ctx.lineTo(px2, py2);
+                        ctx.stroke();
+                    }
+                }
+            }
+        } else {
+            // For regular grid, connect horizontally and vertically adjacent beads
+            const maxConnectionDistance = displayBeadSize * 1.5;
             
-            // Maximum distance for connection (to avoid connecting far-apart beads)
-            const maxConnectionDistance = displayBeadSize * 2.5;
+            // Create a map for quick lookup
+            const beadMap = new Map();
+            for (const bead of pattern) {
+                const key = `${bead.ringIndex}-${bead.positionInRing}`;
+                beadMap.set(key, bead);
+            }
             
-            // Connect each bead to the next one by angle
-            for (let i = 0; i < ringBeads.length; i++) {
-                const currentBead = ringBeads[i];
-                const nextBead = ringBeads[(i + 1) % ringBeads.length];
+            // Connect adjacent beads
+            for (const bead of pattern) {
+                const px1 = bead.x * displayScale + offsetX;
+                const py1 = bead.y * displayScale + offsetY;
                 
-                const px1 = currentBead.x * displayScale + offsetX;
-                const py1 = currentBead.y * displayScale + offsetY;
-                const px2 = nextBead.x * displayScale + offsetX;
-                const py2 = nextBead.y * displayScale + offsetY;
+                // Check right neighbor
+                const rightKey = `${bead.ringIndex}-${bead.positionInRing + 1}`;
+                const rightBead = beadMap.get(rightKey);
+                if (rightBead) {
+                    const px2 = rightBead.x * displayScale + offsetX;
+                    const py2 = rightBead.y * displayScale + offsetY;
+                    const distance = Math.sqrt((px2 - px1) ** 2 + (py2 - py1) ** 2);
+                    if (distance <= maxConnectionDistance) {
+                        ctx.beginPath();
+                        ctx.moveTo(px1, py1);
+                        ctx.lineTo(px2, py2);
+                        ctx.stroke();
+                    }
+                }
                 
-                // Calculate distance between beads
-                const distance = Math.sqrt((px2 - px1) ** 2 + (py2 - py1) ** 2);
-                
-                // Only connect if beads are close enough (neighbors in the ring)
-                if (distance <= maxConnectionDistance) {
-                    ctx.beginPath();
-                    ctx.moveTo(px1, py1);
-                    ctx.lineTo(px2, py2);
-                    ctx.stroke();
+                // Check bottom neighbor
+                const bottomKey = `${bead.ringIndex + 1}-${bead.positionInRing}`;
+                const bottomBead = beadMap.get(bottomKey);
+                if (bottomBead) {
+                    const px2 = bottomBead.x * displayScale + offsetX;
+                    const py2 = bottomBead.y * displayScale + offsetY;
+                    const distance = Math.sqrt((px2 - px1) ** 2 + (py2 - py1) ** 2);
+                    if (distance <= maxConnectionDistance) {
+                        ctx.beginPath();
+                        ctx.moveTo(px1, py1);
+                        ctx.lineTo(px2, py2);
+                        ctx.stroke();
+                    }
                 }
             }
         }
@@ -816,38 +1443,72 @@ function drawPattern(pattern) {
         ctx.restore();
     }
 
-    // Draw radial guide lines ON TOP if grid is enabled
+    // Draw guide lines ON TOP if grid is enabled
     if (state.showGrid) {
         ctx.save();
         ctx.globalAlpha = 0.3;
         ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 1;
 
-        // Draw radial lines
-        const numLines = 24;
-        for (let i = 0; i < numLines; i++) {
-            const angle = (i / numLines) * 2 * Math.PI;
-            const maxDist = Math.max(canvasWidth, canvasHeight);
-            ctx.beginPath();
-            ctx.moveTo(centerX, centerY);
-            ctx.lineTo(
-                centerX + maxDist * Math.cos(angle),
-                centerY + maxDist * Math.sin(angle)
-            );
-            ctx.stroke();
-        }
+        if (state.fillMode === 'radial') {
+            // Draw radial lines for circular pattern
+            const numLines = 24;
+            for (let i = 0; i < numLines; i++) {
+                const angle = (i / numLines) * 2 * Math.PI;
+                const maxDist = Math.max(canvasWidth, canvasHeight);
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY);
+                ctx.lineTo(
+                    centerX + maxDist * Math.cos(angle),
+                    centerY + maxDist * Math.sin(angle)
+                );
+                ctx.stroke();
+            }
 
-        // Draw concentric circles at each ring
-        const rings = new Set(pattern.map(b => b.ringIndex));
-        ctx.globalAlpha = 0.4;
-        ctx.lineWidth = 2;
-        for (const ringIndex of rings) {
-            const beadsInRing = pattern.filter(b => b.ringIndex === ringIndex);
-            if (beadsInRing.length > 0) {
-                const radius = beadsInRing[0].radius * displayScale;
-                if (radius > 0) {
+            // Draw concentric circles at each ring
+            const rings = new Set(pattern.map(b => b.ringIndex));
+            ctx.globalAlpha = 0.4;
+            ctx.lineWidth = 2;
+            for (const ringIndex of rings) {
+                const beadsInRing = pattern.filter(b => b.ringIndex === ringIndex);
+                if (beadsInRing.length > 0) {
+                    const radius = beadsInRing[0].radius * displayScale;
+                    if (radius > 0) {
+                        ctx.beginPath();
+                        ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+                        ctx.stroke();
+                    }
+                }
+            }
+        } else {
+            // Draw rectangular grid for regular pattern
+            const rows = new Set(pattern.map(b => b.ringIndex));
+            const cols = new Set(pattern.map(b => b.positionInRing));
+            
+            // Draw horizontal lines
+            for (const row of rows) {
+                const beadsInRow = pattern.filter(b => b.ringIndex === row);
+                if (beadsInRow.length > 0) {
+                    const minX = Math.min(...beadsInRow.map(b => b.x * displayScale + offsetX));
+                    const maxX = Math.max(...beadsInRow.map(b => b.x * displayScale + offsetX));
+                    const y = beadsInRow[0].y * displayScale + offsetY;
                     ctx.beginPath();
-                    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+                    ctx.moveTo(minX, y);
+                    ctx.lineTo(maxX, y);
+                    ctx.stroke();
+                }
+            }
+            
+            // Draw vertical lines
+            for (const col of cols) {
+                const beadsInCol = pattern.filter(b => b.positionInRing === col);
+                if (beadsInCol.length > 0) {
+                    const minY = Math.min(...beadsInCol.map(b => b.y * displayScale + offsetY));
+                    const maxY = Math.max(...beadsInCol.map(b => b.y * displayScale + offsetY));
+                    const x = beadsInCol[0].x * displayScale + offsetX;
+                    ctx.beginPath();
+                    ctx.moveTo(x, minY);
+                    ctx.lineTo(x, maxY);
                     ctx.stroke();
                 }
             }
@@ -856,45 +1517,48 @@ function drawPattern(pattern) {
         ctx.restore();
     }
 
-    // Draw center point marker on top
-    ctx.save();
-    ctx.strokeStyle = '#ffffff';
-    ctx.fillStyle = '#ffffff';
-    ctx.lineWidth = 3;
-
-    // Draw crosshair at center
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, displayBeadSize * 1.5, 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(centerX - displayBeadSize * 2, centerY);
-    ctx.lineTo(centerX + displayBeadSize * 2, centerY);
-    ctx.moveTo(centerX, centerY - displayBeadSize * 2);
-    ctx.lineTo(centerX, centerY + displayBeadSize * 2);
-    ctx.stroke();
-
-    // Draw center dot with label
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, displayBeadSize / 2, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Label center if labels are enabled
-    if (showLabels) {
-        ctx.fillStyle = 'white';
-        ctx.font = `bold ${Math.floor(displayBeadSize / 2)}px Inter`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.strokeStyle = '#000000';
+    // Draw center point marker on top (only for radial mode)
+    if (state.fillMode === 'radial') {
+        ctx.save();
+        ctx.strokeStyle = '#ffffff';
+        ctx.fillStyle = '#ffffff';
         ctx.lineWidth = 3;
-        ctx.strokeText('0-0', centerX, centerY);
-        ctx.fillText('0-0', centerX, centerY);
+
+        // Draw crosshair at center
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, displayBeadSize * 1.5, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(centerX - displayBeadSize * 2, centerY);
+        ctx.lineTo(centerX + displayBeadSize * 2, centerY);
+        ctx.moveTo(centerX, centerY - displayBeadSize * 2);
+        ctx.lineTo(centerX, centerY + displayBeadSize * 2);
+        ctx.stroke();
+
+        // Draw center dot with label
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, displayBeadSize / 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Label center if labels are enabled
+        if (showLabels) {
+            ctx.fillStyle = 'white';
+            ctx.font = `bold ${Math.floor(displayBeadSize / 2)}px Inter`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 3;
+            ctx.strokeText('0-0', centerX, centerY);
+            ctx.fillText('0-0', centerX, centerY);
+        }
+
+        ctx.restore();
     }
 
-    ctx.restore();
-
-    // Update legend
+    // Update legend and palette editor visibility
     updateLegend();
+    updateLimitColorsState();
 }
 
 function updateLegend() {
@@ -961,6 +1625,11 @@ function updateLegend() {
 }
 
 function updatePaletteEditor() {
+    // Всегда показываем редактор
+    if (colorPaletteEditor) {
+        colorPaletteEditor.style.display = 'block';
+    }
+    
     const paletteEditor = document.getElementById('paletteEditor');
     if (!paletteEditor) return;
 
@@ -968,6 +1637,13 @@ function updatePaletteEditor() {
 
     const { colorPalette, pattern } = state;
     if (!colorPalette || !pattern) return;
+
+    // Update total bead count
+    const totalBeads = pattern.length;
+    const totalBeadsCount = document.getElementById('totalBeadsCount');
+    if (totalBeadsCount) {
+        totalBeadsCount.textContent = totalBeads;
+    }
 
     // Count beads per color
     const counts = new Array(colorPalette.length).fill(0);
@@ -1005,12 +1681,7 @@ function updatePaletteEditor() {
 
         const colorName = document.createElement('div');
         colorName.className = 'palette-item-name';
-        colorName.textContent = 'Загрузка...';
-
-        // Fetch color name asynchronously
-        getColorName(color).then(name => {
-            colorName.textContent = name;
-        });
+        colorName.textContent = 'Цвет';
 
         const hex = document.createElement('div');
         hex.className = 'palette-item-hex';
@@ -1682,29 +2353,10 @@ function rgbToHex(r, g, b) {
     }).join('');
 }
 
-// Cache for color names to avoid repeated API calls
-const colorNameCache = new Map();
-
-async function getColorName(color) {
-    const hex = rgbToHex(color.r, color.g, color.b).substring(1); // Remove #
-
-    // Check cache first
-    if (colorNameCache.has(hex)) {
-        return colorNameCache.get(hex);
-    }
-
-    try {
-        const response = await fetch(`https://www.thecolorapi.com/id?hex=${hex}`);
-        const data = await response.json();
-        const name = data.name.value || 'Цвет';
-
-        // Cache the result
-        colorNameCache.set(hex, name);
-        return name;
-    } catch (error) {
-        console.error('Error fetching color name:', error);
-        return 'Цвет';
-    }
+// API для получения названий цветов отключен
+// Используем просто "Цвет" для всех цветов
+function getColorName(color) {
+    return 'Цвет';
 }
 
 function adjustZoom(factor) {
@@ -1716,6 +2368,13 @@ function adjustZoom(factor) {
 
 function toggleGrid() {
     state.showGrid = !state.showGrid;
+    if (toggleGridBtn) {
+        if (state.showGrid) {
+            toggleGridBtn.classList.add('active');
+        } else {
+            toggleGridBtn.classList.remove('active');
+        }
+    }
     if (state.pattern) {
         drawPattern(state.pattern);
     }
@@ -1723,6 +2382,13 @@ function toggleGrid() {
 
 function toggleLabels() {
     state.showLabels = !state.showLabels;
+    if (toggleLabelsBtn) {
+        if (state.showLabels) {
+            toggleLabelsBtn.classList.add('active');
+        } else {
+            toggleLabelsBtn.classList.remove('active');
+        }
+    }
     if (state.pattern) {
         drawPattern(state.pattern);
     }
@@ -1730,6 +2396,13 @@ function toggleLabels() {
 
 function toggleConnections() {
     state.showConnections = !state.showConnections;
+    if (toggleConnectionsBtn) {
+        if (state.showConnections) {
+            toggleConnectionsBtn.classList.add('active');
+        } else {
+            toggleConnectionsBtn.classList.remove('active');
+        }
+    }
     if (state.pattern) {
         drawPattern(state.pattern);
     }
